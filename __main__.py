@@ -2,6 +2,13 @@ import toml
 import argparse
 from dataclasses import dataclass
 from typing import Union, List
+from enum import Enum
+
+
+class FactoryMode(Enum):
+    none = 0
+    factory = 1
+    safe_factory = 2
 
 
 @dataclass
@@ -42,6 +49,8 @@ def setup_args() -> argparse.ArgumentParser:
     parser.add_argument("toml", type=str)
     parser.add_argument("out", type=str)
     parser.add_argument("-n", "--name", type=str)
+    parser.add_argument("-f", "--factory", action="store_true")
+    parser.add_argument("-s", "--safe", action="store_true")
     return parser
 
 
@@ -63,6 +72,34 @@ def process_object(name: str, d: dict):
 
 
 INDENT = "    "
+FACTORY_MODE = FactoryMode.none
+
+
+def generate_factory(descriptor: ClassDescriptor) -> str:
+    if FACTORY_MODE == FactoryMode.none:
+        return ""
+
+    body = ""
+    ret = []
+    for arg in descriptor.args:
+        entry = ""
+        if FACTORY_MODE == FactoryMode.factory:
+            entry = f"d[\"{arg.name}\"]"
+        elif FACTORY_MODE == FactoryMode.safe_factory:
+            entry = f"d.get(\"{arg.name}\", None)"
+        if type(arg.type) is ClassDescriptor:
+            entry = f"{arg.type}.from_dict({entry})"
+        body += f"{INDENT*2}{arg.name} = {entry}\n"
+        ret.append(arg.name)
+
+    if FACTORY_MODE == FactoryMode.factory:
+        arg_type = "Dict"
+    elif FACTORY_MODE == FactoryMode.safe_factory:
+        arg_type = "Union[Dict, None]"
+
+    ret = ", ".join(ret)
+    ret = f"{INDENT*2}return {descriptor}({ret})"
+    return f"{INDENT}@staticmethod\n{INDENT}def from_dict(d: {arg_type}) -> '{descriptor}':\n{body}\n{ret}\n"
 
 
 def represent_descriptor(descriptor: ClassDescriptor) -> str:
@@ -78,13 +115,22 @@ def represent_descriptor(descriptor: ClassDescriptor) -> str:
         inner = "\n\n".join(inner_classes) + "\n\n"
     else:
         inner = ""
-    return f"{inner}@dataclass\nclass {descriptor}:\n{args}"
+
+    from_dict = generate_factory(descriptor)
+    if from_dict:
+        from_dict = f"\n{from_dict}"
+
+    return f"{inner}@dataclass\nclass {descriptor}:\n{args}{from_dict}"
 
 
 def evaluate_descriptor(descriptor: ClassDescriptor, into: str):
     content = "from dataclasses import dataclass\n"
     if has_list_arg(descriptor):
         content += "from typing import List\n"
+    if FACTORY_MODE == FactoryMode.factory:
+        content += "from typing import Dict\n"
+    if FACTORY_MODE == FactoryMode.safe_factory:
+        content += "from typing import Dict, Union\n"
     content += "\n\n"
     content += represent_descriptor(descriptor).strip(" ")
 
@@ -109,5 +155,11 @@ if __name__ == "__main__":
         name = args.name
     else:
         name = "config"
+
+    if args.factory:
+        FACTORY_MODE = FactoryMode.factory
+
+    if args.factory and args.safe:
+        FACTORY_MODE = FactoryMode.safe_factory
 
     main(toml_path, out_path, name)
