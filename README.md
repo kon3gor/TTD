@@ -16,3 +16,5 @@ You can also add `-s / --safe` flag in order to make `from_dict` safier by using
 ```
 python . config.toml config.py -f -s
 ```
+### Binary
+You can also create an executable by simply running `bin.sh` script. Resulting binary is called `ttd` and you can find it in `dist` directory.
