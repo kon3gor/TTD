@@ -1,0 +1,15 @@
+[unread]
+folder_id = 218
+add_bots = false
+lifetime = 30 # time in seconds
+ignore = [ # Persons who should not be added to this folder
+	"Mike",
+	"Yo",
+	"Hao",
+]
+
+[archive]
+bots = true
+users = true
+groups = true
+pinned = false
