@@ -1,3 +1,6 @@
 *.pyc
 env
-
+..spec
+build
+dist
+ttd.spec
